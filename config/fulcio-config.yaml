@@ -67,7 +67,7 @@ data:
             "https://oidc.codefresh.io": {
               "IssuerURL": "https://oidc.codefresh.io",
               "ClientID": "sigstore",
-              "Type": "codefresh-pipeline"
+              "Type": "codefresh-workflow"
             },
             "https://ops.gitlab.net": {
               "IssuerURL": "https://ops.gitlab.net",
