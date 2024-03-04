@@ -15,4 +15,4 @@
 url: https://oidc.codefresh.io
 contact: support@codefresh.io
 description: "Codefresh OIDC tokens for job identity"
-type: "codefresh-pipeline"
+type: "codefresh-workflow"
