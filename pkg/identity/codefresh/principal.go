@@ -98,15 +98,15 @@ func WorkflowPrincipalFromIDToken(_ context.Context, token *oidc.IDToken) (ident
 	}
 
 	if claims.AccountID == "" {
-		return nil, errors.New("missing account id in token")
+		return nil, errors.New("missing account_id in token")
 	}
 
 	if claims.PipelineID == "" {
-		return nil, errors.New("missing pipeline id in token")
+		return nil, errors.New("missing pipeline_id in token")
 	}
 
 	if claims.WorkflowID == "" {
-		return nil, errors.New("missing workflow id in token")
+		return nil, errors.New("missing workflow_id in token")
 	}
 
 	// Set default platform url in case it is missing in the token
