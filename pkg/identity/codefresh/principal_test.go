@@ -52,7 +52,7 @@ func TestJobPrincipalFromIDToken(t *testing.T) {
 				"exp": 1709556619,
 				"iat": 1709556319,
 				"iss": "https://oidc.codefresh.io",
-				"platformURL": "https://pre-prod.codefresh.io",
+				"platform_url": "https://pre-prod.codefresh.io",
 			},
 			ExpectPrincipal: workflowPrincipal{
 				issuer:  "https://oidc.codefresh.io",
@@ -63,7 +63,7 @@ func TestJobPrincipalFromIDToken(t *testing.T) {
 				pipelineName: "oidc-test/get-token",
 				workflowID: "65e5c23d706f166c4e8985ed",
 				initiator: "codefresh-user",
-				platformURL: "https://g.codefresh.io",
+				platformURL: "https://pre-prod.codefresh.io",
 				runnerEnvironment: "hybrid",
 			},
 			WantErr: false,
@@ -133,6 +133,22 @@ func TestJobPrincipalFromIDToken(t *testing.T) {
 			},
 			WantErr:     true,
 			ErrContains: "account_id",
+		},
+		`Token missing pipeline_id claim should be rejected`: {
+			Claims: map[string]interface{}{
+				"sub": "account:628a80b693a15c0f9c13ab75:pipeline:65e5a53e52853dc51a5b0cc1:initiator:codefresh-user",
+				"account_name": "codefresh-oidc",
+				"account_id": "628a80b693a15c0f9c13ab75",
+				"pipeline_name": "oidc-test/get-token",
+				"workflow_id": "65e6bcf7c2af1f228fa97f80",
+				"initiator": "codefresh-user",
+				"aud": "sigstore",
+				"exp": 1709556619,
+				"iat": 1709556319,
+				"iss": "https://oidc.codefresh.io",
+			},
+			WantErr:     true,
+			ErrContains: "pipeline_id",
 		},
 	}
 
