@@ -15,20 +15,19 @@
 package codefresh
 
 import (
-	//"bytes"
 	"context"
-	//"crypto/x509"
-	//"encoding/asn1"
+	"crypto/x509"
+	"encoding/asn1"
 	"encoding/json"
-	//"errors"
-	//"fmt"
+	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 	"unsafe"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	//"github.com/sigstore/fulcio/pkg/identity"
+	"github.com/sigstore/fulcio/pkg/identity"
 )
 
 func TestJobPrincipalFromIDToken(t *testing.T) {
@@ -197,4 +196,77 @@ func withClaims(token *oidc.IDToken, data []byte) {
 	pointer := unsafe.Pointer(member.UnsafeAddr())
 	realPointer := (*[]byte)(pointer)
 	*realPointer = data
+}
+
+func TestEmbed(t *testing.T) {
+	tests := map[string]struct {
+		Principal identity.Principal
+		WantErr   bool
+		WantFacts map[string]func(x509.Certificate) error
+	}{
+		`Github workflow challenge should have all Github workflow extensions and issuer set`: {
+			Principal: &workflowPrincipal{
+				issuer:  "https://oidc.codefresh.io",
+				subject: "account:628a80b693a15c0f9c13ab75:pipeline:65e5a53e52853dc51a5b0cc1:initiator:codefresh-user:scm_repo_url:https://github.com/codefresh-user/fulcio:scm_user_name:git-user-name:scm_ref:main",
+				accountID: "628a80b693a15c0f9c13ab75",
+				accountName: "codefresh-account",
+				pipelineID: "65e5a53e52853dc51a5b0cc1",
+				pipelineName: "oidc-test/get-token",
+				workflowID: "65e6bcf7c2af1f228fa97f80",
+				initiator: "codefresh-user",
+				scmUsername: "git-user-name",
+				scmRepoUrl: "https://github.com/codefresh-io/fulcio-oidc",
+				scmRef: "main",
+				platformURL: "https://g.codefresh.io",
+				runnerEnvironment: "hybrid",
+			},
+			WantErr: false,
+			WantFacts: map[string]func(x509.Certificate) error{
+				`Certificate has correct issuer (v2) extension`:                  factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 8}, "https://oidc.codefresh.io"),
+				`Certificate has correct builder signer URI extension`:           factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 9}, "https://g.codefresh.io/build/65e6bcf7c2af1f228fa97f80"),
+				`Certificate has correct runner environment extension`:           factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 11}, "hybrid"),
+				`Certificate has correct source repo URI extension`:              factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 12}, "https://github.com/codefresh-io/fulcio-oidc"),
+				`Certificate has correct source repo ref extension`:              factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 14}, "main"),
+				`Certificate has correct build config URI extension`:             factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 18}, "https://g.codefresh.io/build/65e6bcf7c2af1f228fa97f80"),
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			var cert x509.Certificate
+			err := test.Principal.Embed(context.TODO(), &cert)
+			if err != nil {
+				if !test.WantErr {
+					t.Error(err)
+				}
+				return
+			} else if test.WantErr {
+				t.Error("expected error")
+			}
+			for factName, fact := range test.WantFacts {
+				t.Run(factName, func(t *testing.T) {
+					if err := fact(cert); err != nil {
+						t.Error(err)
+					}
+				})
+			}
+		})
+	}
+}
+
+func factExtensionIs(oid asn1.ObjectIdentifier, value string) func(x509.Certificate) error {
+	return func(cert x509.Certificate) error {
+		for _, ext := range cert.ExtraExtensions {
+			if ext.Id.Equal(oid) {
+				var strVal string
+				_, _ = asn1.Unmarshal(ext.Value, &strVal)
+				if value != strVal {
+					return fmt.Errorf("expected oid %v to be %s, but got %s", oid, value, strVal)
+				}
+				return nil
+			}
+		}
+		return errors.New("extension not set")
+	}
 }
