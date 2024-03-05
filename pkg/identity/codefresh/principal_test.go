@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 	"unsafe"
+	"net/url"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/sigstore/fulcio/pkg/identity"
@@ -97,6 +98,41 @@ func TestJobPrincipalFromIDToken(t *testing.T) {
 				scmUsername: "git-user-name",
 				scmRepoUrl: "https://github.com/codefresh-io/fulcio-oidc",
 				scmRef: "main",
+				platformURL: "https://g.codefresh.io",
+				runnerEnvironment: "hybrid",
+			},
+			WantErr: false,
+		},
+		`Valid token - Git pull request trigger authenticates with correct claims`: {
+			Claims: map[string]interface{}{
+				"sub": "account:628a80b693a15c0f9c13ab75:pipeline:65e6d5551e47e5bc243ca93f:scm_repo_url:https://github.com/test-codefresh/fulcio:scm_user_name:test-codefresh:scm_ref:feat/codefresh-issuer:scm_pull_request_target_branch:main",
+				"account_id": "628a80b693a15c0f9c13ab75",
+				"account_name": "test-codefresh",
+				"pipeline_id": "65e6d5551e47e5bc243ca93f",
+				"pipeline_name": "oidc-test/oidc-test-2",
+				"workflow_id": "65e6ebe0bfbfa1782876165e",
+				"scm_user_name": "test-codefresh",
+				"scm_repo_url": "https://github.com/test-codefresh/fulcio",
+				"scm_ref": "feat/codefresh-issuer",
+				"scm_pull_request_target_branch": "main",
+				"runner_environment": "hybrid",
+				"aud": "sigstore",
+				"exp": 1709633177,
+				"iat": 1709632877,
+				"iss": "https://oidc.codefresh.io",
+			},
+			ExpectPrincipal: workflowPrincipal{
+				issuer:  "https://oidc.codefresh.io",
+				subject: "account:628a80b693a15c0f9c13ab75:pipeline:65e6d5551e47e5bc243ca93f:scm_repo_url:https://github.com/test-codefresh/fulcio:scm_user_name:test-codefresh:scm_ref:feat/codefresh-issuer:scm_pull_request_target_branch:main",
+				accountID: "628a80b693a15c0f9c13ab75",
+				accountName: "test-codefresh",
+				pipelineID: "65e6d5551e47e5bc243ca93f",
+				pipelineName: "oidc-test/oidc-test-2",
+				workflowID: "65e6ebe0bfbfa1782876165e",
+				scmUsername: "test-codefresh",
+				scmRepoUrl: "https://github.com/test-codefresh/fulcio",
+				scmRef: "feat/codefresh-issuer",
+				scmPullRequestTargetBranch: "main",
 				platformURL: "https://g.codefresh.io",
 				runnerEnvironment: "hybrid",
 			},
@@ -222,12 +258,14 @@ func TestEmbed(t *testing.T) {
 			},
 			WantErr: false,
 			WantFacts: map[string]func(x509.Certificate) error{
+				`Certificate SAN has correct value`:							  factSanUriIs("https://g.codefresh.io/codefresh-account/oidc-test/get-token:628a80b693a15c0f9c13ab75/65e5a53e52853dc51a5b0cc1"),
 				`Certificate has correct issuer (v2) extension`:                  factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 8}, "https://oidc.codefresh.io"),
 				`Certificate has correct builder signer URI extension`:           factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 9}, "https://g.codefresh.io/build/65e6bcf7c2af1f228fa97f80"),
 				`Certificate has correct runner environment extension`:           factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 11}, "hybrid"),
 				`Certificate has correct source repo URI extension`:              factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 12}, "https://github.com/codefresh-io/fulcio-oidc"),
 				`Certificate has correct source repo ref extension`:              factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 14}, "main"),
 				`Certificate has correct build config URI extension`:             factExtensionIs(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 18}, "https://g.codefresh.io/build/65e6bcf7c2af1f228fa97f80"),
+
 			},
 		},
 	}
@@ -268,5 +306,21 @@ func factExtensionIs(oid asn1.ObjectIdentifier, value string) func(x509.Certific
 			}
 		}
 		return errors.New("extension not set")
+	}
+}
+
+func factSanUriIs(value string) func(x509.Certificate) error {
+	return func(cert x509.Certificate) error {
+		url,err := url.Parse(value)
+
+		if err != nil {
+			return err
+		}
+
+		if cert.URIs[0].String() != url.String() {
+			return fmt.Errorf("expected SAN o be %s, but got %s", value, cert.URIs[0].String()) 
+		}
+
+		return nil
 	}
 }

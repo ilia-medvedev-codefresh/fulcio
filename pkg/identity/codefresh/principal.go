@@ -17,6 +17,7 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net/url"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -140,8 +141,10 @@ func (w workflowPrincipal) Embed(_ context.Context, cert *x509.Certificate) erro
 		return err
 	}
 
-	// Set SAN to the <platform url>/<account id>/<pipeline id> - for example https://g.codefresh.io/628a80b693a15c0f9c13ab75/65e5a53e52853dc51a5b0cc1 - Though it is not a functional url in Codefresh it provides the optimal granularity for verification
-	cert.URIs = []*url.URL{baseURL.JoinPath(w.accountID,w.pipelineID)}
+	// Set SAN to the <platform url>/<account name>/<pipeline name>:<account id>/<pipeline id> - for example https://g.codefresh.io/codefresh-account/oidc-test/get-token:628a80b693a15c0f9c13ab75/65e5a53e52853dc51a5b0cc1
+	// In Codefresh account names and pipeline names may be changed where as IDs do not. 
+	// This pattern will give users the possibility to verify the signature using various forms of `cosign verify --certificate-identity-regexp` i.e https://g.codefresh.io/codefresh-account/oidc-test/get-token:* or https://g.codefresh.io/*:628a80b693a15c0f9c13ab75/65e5a53e52853dc51a5b0cc1 
+	cert.URIs = []*url.URL{baseURL.JoinPath(w.accountName,fmt.Sprintf("%s:%s/%s", w.pipelineName, w.accountID,w.pipelineID))}
 
 	cert.ExtraExtensions, err = certificate.Extensions{
 		Issuer: 							 w.issuer,
