@@ -154,6 +154,7 @@ func (w workflowPrincipal) Embed(_ context.Context, cert *x509.Certificate) erro
 		SourceRepositoryURI:                 w.scmRepoUrl,
 		SourceRepositoryRef:                 w.scmRef,
 		BuildConfigURI:                      baseURL.JoinPath("build",w.workflowID).String(),
+		RunInvocationURI: 					 baseURL.JoinPath("build",w.workflowID).String(),
 	}.Render()
 
 	if err != nil {
